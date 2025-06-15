@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Plus, 
-  Search, 
-  Filter, 
-  Edit, 
-  Trash2, 
-  UserCheck, 
+import {
+  Users,
+  Plus,
+  Search,
+  Filter,
+  Edit,
+  Trash2,
+  UserCheck,
   Mail,
   Calendar,
   Building
@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { SERVER_URL } from '../config/api';
 
 interface Employee {
   _id: string;
@@ -73,7 +74,7 @@ const Employees = () => {
         status: filters.status
       });
 
-      const response = await fetch(`http://localhost:5000/api/employees?${params}`, {
+      const response = await fetch(`${SERVER_URL}/api/employees?${params}`, {
         credentials: 'include'
       });
 
@@ -93,7 +94,7 @@ const Employees = () => {
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('http://localhost:5000/api/employees', {
+      const response = await fetch(`${SERVER_URL}/api/employees`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -123,7 +124,7 @@ const Employees = () => {
     if (!editingEmployee) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/employees/${editingEmployee._id}`, {
+      const response = await fetch(`${SERVER_URL}/api/employees/${editingEmployee._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -158,7 +159,7 @@ const Employees = () => {
     if (!window.confirm('Are you sure you want to delete this employee?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/employees/${employeeId}`, {
+      const response = await fetch(`${SERVER_URL}/api/employees/${employeeId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -180,8 +181,8 @@ const Employees = () => {
   const handleToggleStatus = async (employee: Employee) => {
     try {
       const newStatus = employee.status === 'active' ? 'inactive' : 'active';
-      
-      const response = await fetch(`http://localhost:5000/api/employees/${employee._id}`, {
+
+      const response = await fetch(`${SERVER_URL}/api/employees/${employee._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -250,8 +251,8 @@ const Employees = () => {
   };
 
   const getStatusColor = (status: string) => {
-    return status === 'active' 
-      ? 'bg-green-100 text-green-800' 
+    return status === 'active'
+      ? 'bg-green-100 text-green-800'
       : 'bg-red-100 text-red-800';
   };
 
@@ -478,7 +479,7 @@ const Employees = () => {
             <h3 className="text-lg font-medium text-gray-900 mb-4">
               {editingEmployee ? 'Edit Employee' : 'Add New Employee'}
             </h3>
-            
+
             <form onSubmit={editingEmployee ? handleEditEmployee : handleAddEmployee} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
