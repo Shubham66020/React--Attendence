@@ -9,7 +9,7 @@ import {
   XCircle,
   AlertCircle
 } from 'lucide-react';
-import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 interface AttendanceRecord {
   _id: string;
