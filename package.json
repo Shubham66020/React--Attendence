@@ -8,8 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "server": "cd server && npm install && npm run dev",
-    "dev:full": "concurrently \"npm run dev\" \"npm run server\""
+    "server": "npm install && cd server && npm install && npm run dev",
+    "dev:full": "concurrently \"npm run server\" \"npm run dev\""
   },
   "dependencies": {
     "lucide-react": "^0.344.0",
