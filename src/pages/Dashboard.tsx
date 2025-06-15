@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Clock,
-  Calendar, 
-  TrendingUp, 
-  CheckCircle, 
+  Calendar,
+  TrendingUp,
+  CheckCircle,
   XCircle,
   Timer
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { API_ENDPOINTS } from '../config/api';
 import { format } from 'date-fns';
 
 interface DashboardStats {
@@ -46,24 +47,23 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardData();
   }, []);
-
   const fetchDashboardData = async () => {
     try {
       // Fetch today's attendance
-      const attendanceResponse = await fetch('http://localhost:5000/api/attendance/today', {
+      const attendanceResponse = await fetch(API_ENDPOINTS.ATTENDANCE.TODAY, {
         credentials: 'include'
       });
-      
+
       if (attendanceResponse.ok) {
         const attendanceData = await attendanceResponse.json();
         setTodayAttendance(attendanceData.attendance);
       }
 
       // Fetch attendance stats
-      const statsResponse = await fetch('http://localhost:5000/api/attendance/stats', {
+      const statsResponse = await fetch(API_ENDPOINTS.ATTENDANCE.STATS, {
         credentials: 'include'
       });
-      
+
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
         setStats(statsData.stats);
@@ -93,9 +93,7 @@ const Dashboard = () => {
           console.error('Error getting location:', error);
           console.log('Location access denied');
         }
-      }
-
-      const response = await fetch('http://localhost:5000/api/attendance/mark', {
+      } const response = await fetch(API_ENDPOINTS.ATTENDANCE.MARK, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -105,7 +103,7 @@ const Dashboard = () => {
       });
 
       const data = await response.json();
-      
+
       if (response.ok) {
         setTodayAttendance(data.attendance);
         fetchDashboardData(); // Refresh data
@@ -245,7 +243,7 @@ const Dashboard = () => {
                     <p className="text-sm text-gray-600">{formatTime(todayAttendance.checkIn)}</p>
                   </div>
                 </div>
-                
+
                 {todayAttendance?.checkOut ? (
                   <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
                     <div className="bg-blue-500 p-2 rounded-full">
@@ -267,7 +265,7 @@ const Dashboard = () => {
                     </div>
                   </div>
                 )}
-                
+
                 {todayAttendance?.workingHours && todayAttendance.workingHours > 0 && (
                   <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-lg">
                     <div className="bg-purple-500 p-2 rounded-full">

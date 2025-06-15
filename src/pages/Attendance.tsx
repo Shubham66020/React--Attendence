@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Filter, 
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Filter,
   Download,
   CheckCircle,
   XCircle,
   AlertCircle
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { SERVER_URL } from '../config/api';
 
 interface AttendanceRecord {
   _id: string;
@@ -57,9 +58,7 @@ const Attendance = () => {
         limit: '10',
         startDate: dateRange.startDate,
         endDate: dateRange.endDate
-      });
-
-      const response = await fetch(`http://localhost:5000/api/attendance/history?${params}`, {
+      }); const response = await fetch(`${SERVER_URL}/api/attendance/history?${params}`, {
         credentials: 'include'
       });
 

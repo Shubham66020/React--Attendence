@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Calendar, 
-  Clock, 
+import {
+  BarChart3,
+  TrendingUp,
+  Calendar,
+  Clock,
   Users,
   Download,
   Filter
@@ -22,6 +22,7 @@ import {
 } from 'chart.js';
 import { Bar, Line, Doughnut } from 'react-chartjs-2';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { SERVER_URL } from '../config/api';
 
 ChartJS.register(
   CategoryScale,
@@ -64,7 +65,7 @@ const Reports = () => {
   const fetchReportsData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5000/api/attendance/stats', {
+      const response = await fetch(`${SERVER_URL}/api/attendance/stats`, {
         credentials: 'include'
       });
 
@@ -163,11 +164,11 @@ const Reports = () => {
     return `${hours}h ${mins}m`;
   };
 
-  const attendanceRate = stats.totalDays > 0 
+  const attendanceRate = stats.totalDays > 0
     ? Math.round(((stats.presentDays + stats.lateDays) / stats.totalDays) * 100)
     : 0;
 
-  const punctualityRate = stats.totalDays > 0 
+  const punctualityRate = stats.totalDays > 0
     ? Math.round((stats.presentDays / stats.totalDays) * 100)
     : 0;
 
