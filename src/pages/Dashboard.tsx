@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Clock, 
-  Users, 
+  Clock,
   Calendar, 
   TrendingUp, 
   CheckCircle, 
   XCircle,
-  MapPin,
   Timer
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,6 +15,9 @@ interface DashboardStats {
   todayAttendance?: number;
   thisMonthAttendance?: number;
   averageWorkingHours?: number;
+  totalDays?: number;
+  presentDays?: number;
+  lateDays?: number;
 }
 
 interface TodayAttendance {
@@ -89,6 +90,7 @@ const Dashboard = () => {
             longitude: position.coords.longitude
           };
         } catch (error) {
+          console.error('Error getting location:', error);
           console.log('Location access denied');
         }
       }

@@ -61,6 +61,7 @@ const Settings = () => {
       
       toast.success('Profile updated successfully');
     } catch (error) {
+      console.error('Profile update error:', error);
       toast.error('Failed to update profile');
     } finally {
       setLoading(false);
@@ -94,6 +95,7 @@ const Settings = () => {
       
       toast.success('Password updated successfully');
     } catch (error) {
+      console.error('Password update error:', error);
       toast.error('Failed to update password');
     } finally {
       setLoading(false);

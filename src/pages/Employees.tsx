@@ -113,6 +113,7 @@ const Employees = () => {
         toast.error(data.message);
       }
     } catch (error) {
+      console.error('Error adding employee:', error);
       toast.error('Failed to add employee');
     }
   };
@@ -148,6 +149,7 @@ const Employees = () => {
         toast.error(data.message);
       }
     } catch (error) {
+      console.error('Error updating employee:', error);
       toast.error('Failed to update employee');
     }
   };
@@ -170,6 +172,7 @@ const Employees = () => {
         toast.error(data.message);
       }
     } catch (error) {
+      console.error('Error deleting employee:', error);
       toast.error('Failed to delete employee');
     }
   };
@@ -196,6 +199,7 @@ const Employees = () => {
         toast.error(data.message);
       }
     } catch (error) {
+      console.error('Error updating employee status:', error);
       toast.error('Failed to update employee status');
     }
   };
@@ -526,7 +530,7 @@ const Employees = () => {
                 </label>
                 <select
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'hr' | 'employee' })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none 
                            focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
