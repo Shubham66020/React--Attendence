@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server:dev": "cd server && npm run dev",
-    "server:start": "cd server && npm install && npm start",
+    "server:start": "npm install && cd server && npm install && npm start",
     "dev:full": "concurrently \"npm run dev\" \"npm run server:dev\"",
     "build:full": "npm install && cd server && npm install && cd .. && npm run build",
     "start": "npm run build:full && npm run server:start",
