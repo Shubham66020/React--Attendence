@@ -20,6 +20,9 @@ export const API_ENDPOINTS = {
         HISTORY: `${API_BASE_URL}/attendance/history`,
         TODAY: `${API_BASE_URL}/attendance/today`,
         STATS: `${API_BASE_URL}/attendance/stats`,
+        BREAK: `${API_BASE_URL}/attendance/break`,
+        CURRENT_BREAK: `${API_BASE_URL}/attendance/current-break`,
+        DETAILED: `${API_BASE_URL}/attendance/detailed`,
     },
     EMPLOYEES: `${API_BASE_URL}/employees`,
 } as const;
