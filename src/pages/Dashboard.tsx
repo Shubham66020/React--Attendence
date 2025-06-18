@@ -16,11 +16,12 @@ import {
   BarChart3,
   Activity,
   Globe,
-  MapIcon
+  MapIcon,
+  ClipboardList
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
-import { API_ENDPOINTS } from '../config/api';
+import { API_ENDPOINTS, SERVER_URL } from '../config/api';
 
 interface NavigatorWithConnection extends Navigator {
   connection?: {
@@ -40,6 +41,40 @@ interface DashboardStats {
   remoteDays?: number;
   punctualityRate?: number;
   totalBreaks?: number;
+}
+
+interface Task {
+  _id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'cancelled' | 'overdue';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate: string;
+  category: string;
+  estimatedHours?: number;
+  progress?: number;
+}
+
+interface AttendanceRecord {
+  _id: string;
+  date: string;
+  checkIn: string;
+  checkOut?: string;
+  status: 'present' | 'late' | 'absent' | 'half-day';
+  workingHours: number;
+  breakHours?: number;
+  breaks?: Array<{
+    breakStart: string;
+    breakEnd?: string;
+    type: string;
+    duration?: number;
+  }>;
+  isRemote?: boolean;
+  mood?: string;
+  productivity?: {
+    score: number;
+    tasksCompleted: number;
+  };
 }
 
 interface TodayAttendance {
@@ -99,10 +134,15 @@ const Dashboard = () => {
   const [showHealthCheck, setShowHealthCheck] = useState(false);
   const [showAdvancedCheckIn, setShowAdvancedCheckIn] = useState(false);
   const [selectedMood, setMood] = useState<string>('neutral');
-  const [productivityScore, setProductivityScore] = useState<number>(5);
-  const [tasksPlanned, setTasksPlanned] = useState<number>(0);
+  const [productivityScore, setProductivityScore] = useState<number>(5); const [tasksPlanned, setTasksPlanned] = useState<number>(0); const [userTasks, setUserTasks] = useState<Task[]>([]);
+  const [attendanceHistory, setAttendanceHistory] = useState<AttendanceRecord[]>([]);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [selectedAttendanceRecord, setSelectedAttendanceRecord] = useState<AttendanceRecord | null>(null);
   const [batteryLevel, setBatteryLevel] = useState<number>(0);
-  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine); const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [selectedTaskForCompletion, setSelectedTaskForCompletion] = useState<Task | null>(null);
+  const [completionReason, setCompletionReason] = useState('');
+  const [taskAction, setTaskAction] = useState<'completed' | 'cancelled'>('completed');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -110,10 +150,11 @@ const Dashboard = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
-  useEffect(() => {
+  }, []); useEffect(() => {
     fetchDashboardData();
     fetchBreakStatus();
+    fetchUserTasks();
+    fetchAttendanceHistory();
     getCurrentLocation();
     initializeBatteryStatus();
     initializeNetworkStatus();
@@ -215,7 +256,6 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
-
   const fetchBreakStatus = async () => {
     try {
       const response = await fetch(API_ENDPOINTS.ATTENDANCE.CURRENT_BREAK, {
@@ -228,6 +268,103 @@ const Dashboard = () => {
       }
     } catch (error) {
       console.error('Error fetching break status:', error);
+    }
+  }; const fetchUserTasks = async () => {
+    try {
+      // Fetch all tasks assigned to the user (no limit to ensure all tasks are shown)
+      const response = await fetch(`${SERVER_URL}/api/tasks?status=pending,in-progress,overdue&limit=50`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUserTasks(data.tasks || []);
+      }
+    } catch (error) {
+      console.error('Error fetching user tasks:', error);
+    }
+  };
+
+  const fetchAttendanceHistory = async () => {
+    try {
+      const response = await fetch(`${SERVER_URL}/api/attendance/history?limit=10`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAttendanceHistory(data.attendance || []);
+      }
+    } catch (error) {
+      console.error('Error fetching attendance history:', error);
+    }
+  };
+  const updateTaskStatus = async (taskId: string, status: string, reason?: string) => {
+    try {
+      const requestBody: { status: string; completionReason?: string } = { status };
+
+      if (reason && (status === 'completed' || status === 'cancelled')) {
+        requestBody.completionReason = reason;
+      }
+
+      const response = await fetch(`${SERVER_URL}/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        // Refresh tasks after updating
+        fetchUserTasks();
+        setShowCompletionModal(false);
+        setSelectedTaskForCompletion(null);
+        setCompletionReason('');
+      }
+    } catch (error) {
+      console.error('Error updating task status:', error);
+    }
+  }; const handleTaskCompletion = (task: Task, status: 'completed' | 'cancelled') => {
+    setSelectedTaskForCompletion(task);
+    setTaskAction(status);
+    setShowCompletionModal(true);
+  };
+
+  const handleCompleteTaskWithReason = () => {
+    if (selectedTaskForCompletion) {
+      updateTaskStatus(selectedTaskForCompletion._id, taskAction, completionReason);
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return 'bg-red-100 text-red-800';
+      case 'high':
+        return 'bg-orange-100 text-orange-800';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'low':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'in-progress':
+        return 'bg-blue-100 text-blue-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'overdue':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
   const handleMarkAttendance = async (type: 'checkin' | 'checkout') => {
@@ -521,8 +658,8 @@ const Dashboard = () => {
                       key={mood}
                       onClick={() => setMood(mood)}
                       className={`p-2 rounded-lg border text-center ${mood === selectedMood
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-300 hover:bg-gray-50'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-300 hover:bg-gray-50'
                         }`}
                     >
                       <div className="text-lg">{emoji}</div>
@@ -607,8 +744,8 @@ const Dashboard = () => {
                             );
                           }}
                           className={`p-2 text-sm rounded-lg border ${symptoms.includes(symptom)
-                              ? 'border-red-500 bg-red-50 text-red-700'
-                              : 'border-gray-300 hover:bg-gray-50'
+                            ? 'border-red-500 bg-red-50 text-red-700'
+                            : 'border-gray-300 hover:bg-gray-50'
                             }`}
                         >
                           {symptom}
@@ -878,13 +1015,570 @@ const Dashboard = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Total Breaks</span>
-                  <span className="font-semibold text-orange-600">{stats.totalBreaks || 0}</span>
+                  <span className="font-semibold text-orange-600">{stats.totalBreaks || 0}</span>            </div>
+              </div>
+            </div>
+          </div>
+
+          {/* My Tasks Section */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                <ClipboardList className="h-5 w-5" />
+                <span>My Tasks</span>
+              </h3>              <span className="text-sm text-gray-500">
+                {userTasks.filter(task => task.status === 'pending').length} pending, {userTasks.filter(task => task.status === 'in-progress').length} in progress, {userTasks.filter(task => task.status === 'overdue').length} overdue
+              </span>
+            </div>
+
+            {userTasks.length === 0 ? (
+              <div className="text-center py-8">
+                <ClipboardList className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No tasks assigned yet</p>
+                <p className="text-sm text-gray-500">Check back later for new assignments</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {userTasks.map((task) => (
+                  <div key={task._id} className="p-4 border border-gray-200 rounded-lg hover:shadow-sm transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 mb-1">{task.title}</h4>
+                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">{task.description}</p>
+                        <div className="flex items-center space-x-3 text-xs">
+                          <span className="flex items-center space-x-1">
+                            <Calendar className="h-3 w-3" />
+                            <span>Due: {format(new Date(task.dueDate), 'MMM dd')}</span>
+                          </span>
+                          <span className={`px-2 py-1 rounded-full font-medium ${getPriorityColor(task.priority)}`}>
+                            {task.priority}
+                          </span>
+                          <span className={`px-2 py-1 rounded-full font-medium ${getStatusColor(task.status)}`}>
+                            {task.status}
+                          </span>
+                          {task.estimatedHours && (
+                            <span className="text-gray-500">
+                              {task.estimatedHours}h est.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-col space-y-1 ml-4">
+                        {task.status === 'pending' && (
+                          <button
+                            onClick={() => updateTaskStatus(task._id, 'in-progress')}
+                            className="px-3 py-1 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 transition-colors"
+                          >
+                            Start
+                          </button>
+                        )}                        {task.status === 'in-progress' && (
+                          <button
+                            onClick={() => handleTaskCompletion(task, 'completed')}
+                            className="px-3 py-1 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 transition-colors"
+                          >
+                            Complete
+                          </button>
+                        )}
+                        {task.status !== 'completed' && (
+                          <button
+                            onClick={() => handleTaskCompletion(task, 'cancelled')}
+                            className="px-3 py-1 text-xs bg-red-100 text-red-800 rounded hover:bg-red-200 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {task.progress !== undefined && task.progress > 0 && (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs text-gray-500">Progress</span>
+                          <span className="text-xs text-gray-700">{task.progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${task.progress}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>)}          </div>
+
+          {/* Attendance History Section */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                <Activity className="h-5 w-5" />
+                <span>My Attendance History</span>
+              </h3>
+              <button
+                onClick={() => setShowAttendanceModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                View All
+              </button>
+            </div>
+
+            {attendanceHistory.length === 0 ? (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No attendance records found</p>
+                <p className="text-sm text-gray-500">Your attendance history will appear here</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Check In
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Check Out
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Hours
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {attendanceHistory.slice(0, 5).map((record) => (
+                      <tr key={record._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            {format(new Date(record.date), 'MMM dd, yyyy')}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {format(new Date(record.date), 'EEEE')}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${record.status === 'present'
+                              ? 'bg-green-100 text-green-800'
+                              : record.status === 'late'
+                                ? 'bg-orange-100 text-orange-800'
+                                : record.status === 'absent'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                            {record.status}
+                          </span>
+                          {record.isRemote && (
+                            <span className="ml-1 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                              Remote
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex items-center">
+                            <Clock className="h-4 w-4 text-gray-400 mr-2" />
+                            {format(new Date(record.checkIn), 'HH:mm')}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex items-center">
+                            <Clock className="h-4 w-4 text-gray-400 mr-2" />
+                            {record.checkOut
+                              ? format(new Date(record.checkOut), 'HH:mm')
+                              : 'Not checked out'
+                            }
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {(record.workingHours / 60).toFixed(1)}h
+                          {record.breakHours && record.breakHours > 0 && (
+                            <div className="text-xs text-gray-500">
+                              -{(record.breakHours / 60).toFixed(1)}h break
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => setSelectedAttendanceRecord(record)}
+                            className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
+                          >
+                            <Activity className="h-4 w-4" />
+                            <span>Details</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>      </div>
+
+      {/* Attendance History Modal */}
+      {showAttendanceModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">My Attendance History</h3>
+                <button
+                  onClick={() => setShowAttendanceModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                >
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {attendanceHistory.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600 text-lg">No attendance records found</p>
+                  <p className="text-gray-500">Your attendance history will appear here</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Check In
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Check Out
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Working Hours
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Break Hours
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Breaks
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {attendanceHistory.map((record) => (
+                        <tr key={record._id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {format(new Date(record.date), 'MMM dd, yyyy')}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {format(new Date(record.date), 'EEEE')}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${record.status === 'present'
+                                ? 'bg-green-100 text-green-800'
+                                : record.status === 'late'
+                                  ? 'bg-orange-100 text-orange-800'
+                                  : record.status === 'absent'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                              {record.status}
+                            </span>
+                            {record.isRemote && (
+                              <div className="mt-1">
+                                <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                  Remote
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">
+                              <Clock className="h-4 w-4 text-gray-400 mr-2" />
+                              {format(new Date(record.checkIn), 'HH:mm')}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center">
+                              <Clock className="h-4 w-4 text-gray-400 mr-2" />
+                              {record.checkOut
+                                ? format(new Date(record.checkOut), 'HH:mm')
+                                : 'Not checked out'
+                              }
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(record.workingHours / 60).toFixed(1)}h
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {record.breakHours && record.breakHours > 0
+                              ? `${(record.breakHours / 60).toFixed(1)}h`
+                              : '0h'
+                            }
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {record.breaks && record.breaks.length > 0 ? (
+                              <div className="flex items-center">
+                                <Timer className="h-4 w-4 text-gray-400 mr-1" />
+                                {record.breaks.length} break{record.breaks.length > 1 ? 's' : ''}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">No breaks</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button
+                              onClick={() => setSelectedAttendanceRecord(record)}
+                              className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
+                            >
+                              <Activity className="h-4 w-4" />
+                              <span>Details</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attendance Details Modal */}
+      {selectedAttendanceRecord && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Attendance Details - {format(new Date(selectedAttendanceRecord.date), 'MMM dd, yyyy')}
+                </h3>
+                <button
+                  onClick={() => setSelectedAttendanceRecord(null)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                >
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Basic Information */}
+                <div className="space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-semibold text-gray-900 mb-3">Basic Information</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Date:</span>
+                        <span className="font-medium">{format(new Date(selectedAttendanceRecord.date), 'EEEE, MMM dd, yyyy')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${selectedAttendanceRecord.status === 'present'
+                            ? 'bg-green-100 text-green-800'
+                            : selectedAttendanceRecord.status === 'late'
+                              ? 'bg-orange-100 text-orange-800'
+                              : selectedAttendanceRecord.status === 'absent'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                          {selectedAttendanceRecord.status}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Work Mode:</span>
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${selectedAttendanceRecord.isRemote
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-800'
+                          }`}>
+                          {selectedAttendanceRecord.isRemote ? 'Remote' : 'In Office'}
+                        </span>
+                      </div>
+                      {selectedAttendanceRecord.mood && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Mood:</span>
+                          <span className="font-medium capitalize">{selectedAttendanceRecord.mood}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Time Information */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-semibold text-gray-900 mb-3">Time Information</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Check In:</span>
+                        <span className="font-medium">{format(new Date(selectedAttendanceRecord.checkIn), 'HH:mm:ss')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Check Out:</span>
+                        <span className="font-medium">
+                          {selectedAttendanceRecord.checkOut
+                            ? format(new Date(selectedAttendanceRecord.checkOut), 'HH:mm:ss')
+                            : 'Not checked out'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Working Hours:</span>
+                        <span className="font-medium text-green-600">
+                          {Math.floor(selectedAttendanceRecord.workingHours / 60)}h {selectedAttendanceRecord.workingHours % 60}m
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Break Hours:</span>
+                        <span className="font-medium text-orange-600">
+                          {selectedAttendanceRecord.breakHours && selectedAttendanceRecord.breakHours > 0
+                            ? `${Math.floor(selectedAttendanceRecord.breakHours / 60)}h ${selectedAttendanceRecord.breakHours % 60}m`
+                            : '0h 0m'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Productivity Information */}
+                  {selectedAttendanceRecord.productivity && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="font-semibold text-gray-900 mb-3">Productivity</h4>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Score:</span>
+                          <span className="font-medium text-blue-600">
+                            {selectedAttendanceRecord.productivity.score}/10
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Tasks Completed:</span>
+                          <span className="font-medium text-green-600">
+                            {selectedAttendanceRecord.productivity.tasksCompleted}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Breaks Information */}
+                <div className="space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-semibold text-gray-900 mb-3">Break Details</h4>
+                    {selectedAttendanceRecord.breaks && selectedAttendanceRecord.breaks.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedAttendanceRecord.breaks.map((breakItem, index) => (
+                          <div key={index} className="bg-white p-3 rounded border">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900 capitalize">
+                                  {breakItem.type} Break #{index + 1}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Start: {format(new Date(breakItem.breakStart), 'HH:mm:ss')}
+                                </div>
+                                {breakItem.breakEnd && (
+                                  <div className="text-xs text-gray-500">
+                                    End: {format(new Date(breakItem.breakEnd), 'HH:mm:ss')}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                {breakItem.duration ? (
+                                  <span className="text-sm font-medium text-orange-600">
+                                    {Math.floor(breakItem.duration / 60)}h {breakItem.duration % 60}m
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-red-600">Ongoing</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <Coffee className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-600">No breaks taken</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Task Completion Modal */}
+      {showCompletionModal && selectedTaskForCompletion && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            {taskAction === 'completed' ? 'Complete' : 'Cancel'} Task: {selectedTaskForCompletion.title}
+          </h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {taskAction === 'completed' ? 'Completion' : 'Cancellation'} Reason
+                <span className="text-red-500 ml-1">*</span>
+              </label>
+              <textarea
+                value={completionReason}
+                onChange={(e) => setCompletionReason(e.target.value)}
+                placeholder={
+                  taskAction === 'completed'
+                    ? "Please describe what was accomplished..."
+                    : "Please explain why this task is being cancelled..."
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows={3}
+                maxLength={500}
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {completionReason.length}/500 characters (Required)
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowCompletionModal(false);
+                  setSelectedTaskForCompletion(null);
+                  setCompletionReason('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>              <button
+                onClick={handleCompleteTaskWithReason}
+                disabled={!completionReason.trim()}
+                className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${taskAction === 'completed'
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-red-600 hover:bg-red-700'
+                  }`}
+              >
+                {taskAction === 'completed' ? 'Complete' : 'Cancel'} Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

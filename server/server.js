@@ -10,6 +10,8 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import attendanceRoutes from './routes/attendance.js';
 import employeeRoutes from './routes/employees.js';
+import taskRoutes from './routes/tasks.js';
+import adminRoutes from './routes/admin.js';
 
 // Load environment variables
 dotenv.config();
@@ -53,6 +55,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Serve React app for all non-API routes
 app.get('*', (req, res) => {

@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Clock, 
-  Users, 
-  BarChart3, 
-  Settings, 
-  Menu, 
-  X, 
+import {
+  LayoutDashboard,
+  Clock,
+  Users,
+  BarChart3,
+  Settings,
+  Menu,
+  X,
   LogOut,
-  Building2
+  Building2,
+  Shield
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -18,12 +19,15 @@ const Layout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    ...(user?.role === 'admin' || user?.role === 'hr'
+      ? [{ name: 'Admin Panel', href: '/admin', icon: Shield }]
+      : []
+    ),
     { name: 'Attendance', href: '/attendance', icon: Clock },
-    ...(user?.role === 'admin' || user?.role === 'hr' 
-      ? [{ name: 'Employees', href: '/employees', icon: Users }] 
+    ...(user?.role === 'admin' || user?.role === 'hr'
+      ? [{ name: 'Employees', href: '/employees', icon: Users }]
       : []
     ),
     { name: 'Reports', href: '/reports', icon: BarChart3 },
@@ -41,7 +45,7 @@ const Layout = () => {
     <div className="min-h-screen bg-gray-50">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 lg:hidden bg-black bg-opacity-50"
           onClick={() => setSidebarOpen(false)}
         />
@@ -132,7 +136,7 @@ const Layout = () => {
             >
               <Menu className="h-6 w-6" />
             </button>
-            
+
             <div className="flex items-center space-x-4">
               <div className="hidden sm:block">
                 <p className="text-sm text-gray-600">
