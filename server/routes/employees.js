@@ -65,8 +65,11 @@ router.get('/', authenticate, authorize('admin', 'hr'), async (req, res) => {
 // @access  Private (Admin, HR)
 router.get('/:id', authenticate, authorize('admin', 'hr'), async (req, res) => {
   try {
-    const employee = await User.findById(req.params.id).select('-password');
-    
+    const employee = await User.findById(req.params.id)
+      .select('-password')
+      .populate('manager', 'name email')
+      .populate('subordinates', 'name email');
+
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -77,14 +80,29 @@ router.get('/:id', authenticate, authorize('admin', 'hr'), async (req, res) => {
     // Get recent attendance
     const recentAttendance = await Attendance.find({ userId: req.params.id })
       .sort({ date: -1 })
-      .limit(5);
+      .limit(5)
+      .select('date checkIn checkOut status productivity totalHours');
+
+    // Get basic stats count (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const totalAttendanceDays = await Attendance.countDocuments({
+      userId: req.params.id,
+      date: { $gte: thirtyDaysAgo.toISOString().split('T')[0] }
+    });
 
     res.json({
       success: true,
-      employee,
+      employee: {
+        ...employee.toJSON(),
+        totalAttendanceDays,
+        lastSeen: employee.lastSeen || employee.lastLogin
+      },
       recentAttendance
     });
   } catch (error) {
+    console.error('Get employee error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error occurred'
@@ -125,12 +143,12 @@ router.post('/', [
     }
 
     // Create new employee
-    const employee = new User({ 
-      name, 
-      email, 
-      password, 
-      role, 
-      department: department || 'General' 
+    const employee = new User({
+      name,
+      email,
+      password,
+      role,
+      department: department || 'General'
     });
     await employee.save();
 
@@ -218,7 +236,7 @@ router.put('/:id', [
 router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
     const employee = await User.findById(req.params.id);
-    
+
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -238,7 +256,7 @@ router.delete('/:id', authenticate, authorize('admin'), async (req, res) => {
     }
 
     await User.findByIdAndDelete(req.params.id);
-    
+
     // Optionally delete associated attendance records
     await Attendance.deleteMany({ userId: req.params.id });
 
