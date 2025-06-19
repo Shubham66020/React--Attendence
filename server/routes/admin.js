@@ -242,7 +242,7 @@ router.get('/employees/:id/stats', authenticate, authorize('admin', 'hr'), async
         const attendanceStats = await Attendance.aggregate([
             {
                 $match: {
-                    user: new mongoose.Types.ObjectId(id),
+                    userId: new mongoose.Types.ObjectId(id),
                     date: { $gte: start, $lte: end }
                 }
             },
@@ -304,7 +304,7 @@ router.get('/employees/:id/stats', authenticate, authorize('admin', 'hr'), async
             }
         ]);        // Recent attendance records with breaks
         const recentAttendance = await Attendance.find({
-            user: id,
+            userId: id,
             date: { $gte: start, $lte: end }
         })
             .sort({ date: -1 })
@@ -323,7 +323,7 @@ router.get('/employees/:id/stats', authenticate, authorize('admin', 'hr'), async
         const weeklyTrends = await Attendance.aggregate([
             {
                 $match: {
-                    user: new mongoose.Types.ObjectId(id),
+                    userId: new mongoose.Types.ObjectId(id),
                     date: { $gte: start, $lte: end }
                 }
             },
